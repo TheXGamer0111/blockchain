@@ -1,0 +1,1 @@
+fn(axum::extract::State<Arc<Blockchain>>, axum::Json<TransactionRequest>) -> impl Future<Output = axum::Json<{type error}>> {routes::create_transaction}
