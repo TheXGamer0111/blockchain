@@ -1,5 +1,4 @@
 import { configureStore } from '@reduxjs/toolkit';
-import { apiMiddleware } from './middleware/apiMiddleware';
 import blockchainReducer from './slices/blockchainSlice';
 import walletReducer from './slices/walletSlice';
 import stakingReducer from './slices/stakingSlice';
@@ -14,10 +13,7 @@ export const store = configureStore({
     governance: governanceReducer,
     dashboard: dashboardReducer,
   },
-  middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware({
-      serializableCheck: false,
-    }).concat(apiMiddleware),
+ 
 });
 
 export default store;

@@ -30,7 +30,18 @@ const blockchainSlice = createSlice({
     loading: false,
     error: null,
   },
-  reducers: {},
+  reducers: {
+    addBlock: (state, action) => {
+      state.recentBlocks.unshift(action.payload);
+      state.networkStats.blocks += 1;
+    },
+    updateNetworkStats: (state, action) => {
+      state.networkStats = action.payload;
+    },
+    updateMempoolTransactions: (state, action) => {
+      state.networkStats.mempool = action.payload.length;
+    }
+  },
   extraReducers: (builder) => {
     builder
       .addCase(fetchNetworkStats.pending, (state) => {
@@ -49,5 +60,11 @@ const blockchainSlice = createSlice({
       });
   },
 });
+
+export const { 
+  addBlock, 
+  updateNetworkStats, 
+  updateMempoolTransactions 
+} = blockchainSlice.actions;
 
 export default blockchainSlice.reducer; 
