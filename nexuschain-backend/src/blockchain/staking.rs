@@ -115,4 +115,9 @@ impl StakingManager {
             .cloned()
             .unwrap_or_default()
     }
+
+    pub fn select_validator(&self) -> Option<String> {
+        // Temporary implementation
+        None  // Return None until proper validator selection logic is implemented
+    }
 } 

@@ -1,29 +1,29 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
-import { Provider } from 'react-redux'
-import { store } from './store'
-import Layout from './components/layout/Layout'
-import Dashboard from './pages/Dashboard'
-import Wallet from './pages/Wallet'
-import Explorer from './pages/Explorer'
-import Network from './pages/Network'
-import Contracts from './pages/Contracts'
+import { BrowserRouter as Router } from 'react-router-dom';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import Layout from './components/layout/Layout';
+import AppRoutes from './routes';
 
 function App() {
   return (
-    <Provider store={store}>
-      <Router>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/wallet" element={<Wallet />} />
-            <Route path="/explorer" element={<Explorer />} />
-            <Route path="/network" element={<Network />} />
-            <Route path="/contracts" element={<Contracts />} />
-          </Routes>
-        </Layout>
-      </Router>
-    </Provider>
-  )
+    <Router>
+      <Layout>
+        <AppRoutes />
+      </Layout>
+      <ToastContainer
+        position="top-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="dark"
+      />
+    </Router>
+  );
 }
 
-export default App 
+export default App;

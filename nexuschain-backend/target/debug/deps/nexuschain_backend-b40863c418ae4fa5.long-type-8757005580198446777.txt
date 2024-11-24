@@ -1,0 +1,1 @@
+fn(axum::extract::State<{type error}>, Json<TransactionRequest>) -> impl std::future::Future<Output = impl IntoResponse> {routes::create_transaction}

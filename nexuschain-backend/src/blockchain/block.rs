@@ -11,6 +11,7 @@ pub struct Block {
     pub previous_hash: String,
     pub hash: String,
     pub nonce: u64,
+    pub validator: String,
 }
 
 impl Block {
@@ -22,6 +23,7 @@ impl Block {
             previous_hash,
             hash: String::new(),
             nonce: 0,
+            validator: String::new(),
         };
         block.hash = block.calculate_hash();
         block

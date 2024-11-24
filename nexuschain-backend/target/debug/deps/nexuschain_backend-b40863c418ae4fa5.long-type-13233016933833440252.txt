@@ -1,0 +1,1 @@
+fn(axum::extract::State<AppState>, axum::extract::Path<std::string::String>) -> impl std::future::Future<Output = impl IntoResponse> {get_block_by_hash}

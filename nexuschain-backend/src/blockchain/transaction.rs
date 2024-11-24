@@ -37,6 +37,7 @@ impl Transaction {
         hex::encode(hasher.finalize())
     }
 
+    
     pub fn sign(&mut self, signature: String) {
         self.signature = Some(signature);
     }

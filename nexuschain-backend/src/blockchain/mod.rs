@@ -9,6 +9,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use crate::blockchain::staking::StakingManager; // Ensure this import is correct
 use crate::blockchain::governance::GovernanceManager; // Ensure this import is correct
+use std::collections::HashSet;
 
 pub use block::Block; // Re-export Block to make it accessible
 pub use transaction::Transaction; // Re-export Transaction to make it accessible
@@ -24,9 +25,10 @@ pub struct Blockchain {
     pub mining_reward: f64,
     pub staking_manager: Arc<StakingManager>,
     pub governance_manager: GovernanceManager,
+    pub peers: Arc<RwLock<HashSet<String>>>,
 }
 
-#[allow(dead_code)]
+
 impl Blockchain {
     pub fn new(difficulty: usize, mining_reward: f64) -> Self {
         let mut chain = Vec::new();
@@ -41,6 +43,7 @@ impl Blockchain {
             mining_reward,
             staking_manager: staking_manager.clone(),
             governance_manager: GovernanceManager::new(staking_manager),
+            peers: Arc::new(RwLock::new(HashSet::new())),
         }
     }
 
@@ -58,16 +61,20 @@ impl Blockchain {
         Ok(())
     }
 
-    pub async fn mine_pending_transactions(&self, miner_address: String) -> Result<Block, String> {
+    pub async fn mine_pending_transactions(&self) -> Result<Block, String> {
         let pending = self.pending_transactions.read().await;
         if pending.is_empty() {
             return Err("No transactions to mine".to_string());
         }
 
+        // Select a validator using the staking manager
+        let validator = self.staking_manager.select_validator()
+            .ok_or("No valid validator found")?;
+
         let mut transactions = pending.clone();
         transactions.push(Transaction::new(
             "network".to_string(),
-            miner_address,
+            validator.clone(),
             self.mining_reward,
         ));
 
@@ -79,7 +86,11 @@ impl Blockchain {
             previous_block.hash.clone(),
         );
 
-        new_block.mine(self.difficulty);
+        // Set the validator for the new block
+        new_block.validator = validator;
+
+        // Validate the block (e.g., check the validator's stake)
+        // ...
 
         drop(chain);
         drop(pending);
@@ -169,6 +180,19 @@ impl Blockchain {
 
     pub fn governance_manager(&self) -> &GovernanceManager {
         &self.governance_manager
+    }
+
+    pub async fn add_peer(&self, peer_address: &str) -> Result<(), String> {
+        let mut peers = self.peers.write().await;
+        if peers.contains(peer_address) {
+            return Err("Peer already exists".to_string());
+        }
+        peers.insert(peer_address.to_string());
+        Ok(())
+    }
+
+    pub fn get_peers(&self) -> Vec<String> {
+        self.peers.blocking_read().iter().cloned().collect()
     }
 }
 

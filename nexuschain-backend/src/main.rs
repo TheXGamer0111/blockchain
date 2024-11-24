@@ -25,7 +25,7 @@ async fn main() {
     let node = Node::new(p2p_addr, blockchain.clone());
 
     // Setup API server
-    let api_addr: SocketAddr = "127.0.0.1:8000".parse().unwrap();
+    let api_addr: SocketAddr = "127.0.0.1:8001".parse().unwrap();
     let api_server = ApiServer::new(blockchain.clone());
     let app = api_server.create_router();
 
