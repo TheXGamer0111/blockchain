@@ -47,14 +47,26 @@ function ProposalsList() {
 
   return (
     <div className="space-y-6">
-      {proposals.map((proposal) => (
-        <ProposalCard
-          key={proposal.id}
-          proposal={proposal}
-          onVote={handleVote}
-          isConnected={isConnected}
-        />
-      ))}
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold text-white">Proposals</h2>
+        <select className="bg-gray-700 text-white rounded-lg px-3 py-1">
+          <option value="all">All Proposals</option>
+          <option value="active">Active</option>
+          <option value="passed">Passed</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+
+      <div className="space-y-4">
+        {proposals.map((proposal) => (
+          <ProposalCard
+            key={proposal.id}
+            proposal={proposal}
+            onVote={handleVote}
+            isConnected={isConnected}
+          />
+        ))}
+      </div>
     </div>
   );
 }

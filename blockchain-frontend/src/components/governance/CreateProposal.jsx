@@ -43,10 +43,9 @@ function CreateProposal() {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h2 className="text-lg font-medium text-gray-900 mb-6">Create New Proposal</h2>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="bg-gray-800 rounded-lg p-6">
+      <h2 className="text-xl font-semibold text-white mb-4">Create Proposal</h2>
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700">
             Title

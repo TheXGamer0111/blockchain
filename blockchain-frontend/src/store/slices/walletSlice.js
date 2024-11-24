@@ -25,21 +25,23 @@ export const connectWallet = createAsyncThunk(
         throw new Error('Please install MetaMask!');
       }
 
-      // Request account access
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-      const address = accounts[0];
+      const accounts = await window.ethereum.request({ 
+        method: 'eth_requestAccounts' 
+      });
       
-      // Get balance
-      const balance = await web3.eth.getBalance(address);
-      const balanceInEth = web3.utils.fromWei(balance, 'ether');
+      if (!accounts || accounts.length === 0) {
+        throw new Error('No accounts found');
+      }
 
-      // Get network ID
+      const address = accounts[0];
+      const web3 = new Web3(window.ethereum);
+      const balance = await web3.eth.getBalance(address);
       const networkId = await web3.eth.net.getId();
 
       return {
         address,
-        balance: balanceInEth,
-        networkId,
+        balance: web3.utils.fromWei(balance, 'ether'),
+        networkId: Number(networkId)
       };
     } catch (error) {
       return rejectWithValue(error.message);
@@ -49,9 +51,23 @@ export const connectWallet = createAsyncThunk(
 
 export const disconnectWallet = createAsyncThunk(
   'wallet/disconnect',
-  async () => {
-    // Implement any cleanup needed
-    return null;
+  async (_, { dispatch }) => {
+    try {
+      // Clear any Web3 instance state
+      if (window.ethereum) {
+        window.ethereum.removeAllListeners();
+      }
+
+      // Clear any local storage items
+      localStorage.removeItem('walletConnected');
+      localStorage.removeItem('connectedAddress');
+
+      // Don't show toast message here since it's shown in the component
+      return null;
+    } catch (error) {
+      // Don't show error toast here
+      throw error;
+    }
   }
 );
 
@@ -167,9 +183,9 @@ export const switchNetwork = createAsyncThunk(
         }
       });
 
-      // Get the new network ID after switching
+      // Ensure networkId is converted to a regular number
       const networkId = await window.ethereum.request({ method: 'eth_chainId' });
-      return parseInt(networkId, 16);
+      return Number(networkId); // Convert hex to number
     } catch (error) {
       toast.error(`Failed to switch network: ${error.message}`);
       return rejectWithValue(error.message);
@@ -186,6 +202,7 @@ const walletSlice = createSlice({
     isConnected: false,
     isConnecting: false,
     error: null,
+    loading: false,
     transactions: [],
     pendingTransactions: [],
     tokens: {},
@@ -211,13 +228,21 @@ const walletSlice = createSlice({
     addTokenTransaction: (state, action) => {
       state.tokenTransactions.unshift(action.payload);
     },
+    setError: (state, action) => {
+      state.error = action.payload;
+      state.loading = false;
+    },
+    updateNetworkId: (state, action) => {
+      state.networkId = Number(action.payload);
+    },
   },
   extraReducers: (builder) => {
     builder
-      // Connect wallet
+      // Connect wallet cases
       .addCase(connectWallet.pending, (state) => {
         state.isConnecting = true;
         state.error = null;
+        state.loading = true;
       })
       .addCase(connectWallet.fulfilled, (state, action) => {
         state.isConnecting = false;
@@ -225,17 +250,40 @@ const walletSlice = createSlice({
         state.address = action.payload.address;
         state.balance = action.payload.balance;
         state.networkId = action.payload.networkId;
+        state.error = null;
+        state.loading = false;
       })
       .addCase(connectWallet.rejected, (state, action) => {
         state.isConnecting = false;
-        state.error = action.payload;
-      })
-      // Disconnect wallet
-      .addCase(disconnectWallet.fulfilled, (state) => {
         state.isConnected = false;
-        state.address = null;
-        state.balance = '0';
-        state.networkId = null;
+        state.error = action.payload;
+        state.loading = false;
+      })
+      // Disconnect wallet cases
+      .addCase(disconnectWallet.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(disconnectWallet.fulfilled, (state) => {
+        return {
+          ...state,
+          isConnected: false,
+          isConnecting: false,
+          address: null,
+          balance: '0',
+          networkId: null,
+          error: null,
+          loading: false,
+          transactions: [],
+          pendingTransactions: [],
+          tokens: {},
+          tokenTransactions: [],
+          loadingTokens: false,
+          tokenError: null,
+        };
+      })
+      .addCase(disconnectWallet.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message;
       })
       // Send transaction
       .addCase(sendTransaction.pending, (state, action) => {
@@ -269,7 +317,7 @@ const walletSlice = createSlice({
       })
       .addCase(switchNetwork.fulfilled, (state, action) => {
         state.loading = false;
-        state.networkId = action.payload;
+        state.networkId = Number(action.payload); // Ensure it's a regular number
       })
       .addCase(switchNetwork.rejected, (state, action) => {
         state.loading = false;
@@ -283,7 +331,9 @@ export const {
   addTransaction, 
   addPendingTransaction, 
   removePendingTransaction, 
-  addTokenTransaction 
+  addTokenTransaction,
+  setError,
+  updateNetworkId
 } = walletSlice.actions;
 
 export default walletSlice.reducer; 

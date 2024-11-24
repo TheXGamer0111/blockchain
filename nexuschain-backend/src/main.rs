@@ -2,17 +2,11 @@ mod api;
 mod blockchain;
 mod networking;
 mod wallet;
-mod websocket;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio;
 use tracing_subscriber;
-use axum::{
-    routing::get,
-    Router,
-};
-use tower_http::cors::{Any, CorsLayer};
 
 use blockchain::Blockchain;
 use networking::Node;
@@ -34,18 +28,6 @@ async fn main() {
     let api_addr: SocketAddr = "127.0.0.1:8001".parse().unwrap();
     let api_server = ApiServer::new(blockchain.clone());
     let app = api_server.create_router();
-
-    // CORS configuration
-    let cors = CorsLayer::new()
-        .allow_origin("http://localhost:5173".parse::<HeaderValue>().unwrap())
-        .allow_methods(vec![Method::GET, Method::POST, Method::PUT, Method::DELETE])
-        .allow_headers(Any)
-        .allow_credentials(true);
-
-    // Create router with WebSocket endpoint
-    let app = Router::new()
-        .route("/ws", get(websocket::ws_handler))
-        .layer(cors);
 
     println!("P2P Node listening on {}", p2p_addr);
     println!("API Server listening on {}", api_addr);

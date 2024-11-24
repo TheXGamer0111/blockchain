@@ -14,6 +14,7 @@ import {
   Bar
 } from 'recharts';
 import { fetchDashboardData } from '../store/slices/dashboardSlice';
+import GovernanceWidget from '../components/dashboard/GovernanceWidget';
 
 function Dashboard() {
   const dispatch = useDispatch();
@@ -135,6 +136,8 @@ function Dashboard() {
           </div>
         </div>
       </div>
+
+      <GovernanceWidget />
     </div>
   );
 }

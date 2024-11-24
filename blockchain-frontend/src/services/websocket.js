@@ -28,6 +28,14 @@ export class WebSocketService {
     this.intentionalClose = false;
     this.reconnectTimeout = null;
     this.initialConnection = true;
+    this.pingInterval = null;
+    this.pongTimeout = null;
+    this.pingIntervalTime = 30000; // 30 seconds
+    this.pongTimeoutTime = 10000; // 10 seconds
+    this.connectionStatus = {
+      isConnected: false,
+      hasConnectedBefore: false
+    };
   }
 
   connect() {
@@ -60,11 +68,21 @@ export class WebSocketService {
       this.isConnecting = false;
       this.reconnectAttempts = 0;
       this.clearReconnectTimeout();
+      this.connectionStatus.isConnected = true;
+      
+      this.startPingPong();
       
       if (!this.initialConnection && !this.intentionalClose) {
-        toast.success('Connected to blockchain network', {
-          toastId: 'ws-connected'
-        });
+        if (this.connectionStatus.hasConnectedBefore) {
+          toast.success('Reconnected to blockchain network', {
+            toastId: 'ws-reconnected'
+          });
+        } else {
+          toast.success('Connected to blockchain network', {
+            toastId: 'ws-connected'
+          });
+          this.connectionStatus.hasConnectedBefore = true;
+        }
       }
       this.initialConnection = false;
     };
@@ -93,6 +111,7 @@ export class WebSocketService {
 
     this.ws.onclose = (event) => {
       this.isConnecting = false;
+      this.connectionStatus.isConnected = false;
       console.log('WebSocket connection closed:', event);
       
       if (!this.intentionalClose && !this.initialConnection) {
@@ -130,6 +149,13 @@ export class WebSocketService {
     }
 
     switch(data.type) {
+      case 'PONG':
+        if (this.pongTimeout) {
+          clearTimeout(this.pongTimeout);
+          this.pongTimeout = null;
+        }
+        break;
+
       case MessageTypes.NEW_BLOCK:
         store.dispatch(addBlock(data.payload));
         toast.info(`New block mined: ${data.payload.hash.slice(0, 8)}...`, {
@@ -196,6 +222,8 @@ export class WebSocketService {
   disconnect() {
     this.intentionalClose = true;
     this.clearReconnectTimeout();
+    this.stopPingPong();
+    this.connectionStatus.isConnected = false;
     
     if (this.ws) {
       this.ws.close(1000, 'Client disconnecting');
@@ -208,18 +236,64 @@ export class WebSocketService {
   isConnected() {
     return this.ws && this.ws.readyState === WebSocket.OPEN;
   }
+
+  getConnectionStatus() {
+    return {
+      ...this.connectionStatus,
+      isConnected: this.isConnected()
+    };
+  }
+
+  startPingPong() {
+    this.pingInterval = setInterval(() => {
+      if (this.isConnected()) {
+        this.ws.send(JSON.stringify({ type: 'PING' }));
+        
+        this.pongTimeout = setTimeout(() => {
+          console.log('Pong not received, reconnecting...');
+          this.reconnect();
+        }, this.pongTimeoutTime);
+      }
+    }, this.pingIntervalTime);
+  }
+
+  stopPingPong() {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+    if (this.pongTimeout) {
+      clearTimeout(this.pongTimeout);
+      this.pongTimeout = null;
+    }
+  }
+
+  reconnect() {
+    this.ws?.close();
+    this.handleReconnect();
+  }
+
+  cleanup() {
+    this.disconnect();
+    this.stopPingPong();
+    this.clearReconnectTimeout();
+  }
 }
 
 export const wsService = new WebSocketService();
 
 export const useWebSocket = () => {
-  const [isConnected, setIsConnected] = useState(wsService.isConnected());
+  const [connectionStatus, setConnectionStatus] = useState(wsService.getConnectionStatus());
 
   useEffect(() => {
     const checkConnection = () => {
-      const connected = wsService.isConnected();
-      setIsConnected(connected);
+      const status = wsService.getConnectionStatus();
+      setConnectionStatus(status);
     };
+
+    if (!wsService.isConnected() && !wsService.isConnecting) {
+      wsService.connect();
+    }
 
     checkConnection();
     const interval = setInterval(checkConnection, 3000);
@@ -229,5 +303,5 @@ export const useWebSocket = () => {
     };
   }, []);
 
-  return isConnected;
+  return connectionStatus;
 }; 
