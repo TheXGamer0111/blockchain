@@ -21,46 +21,41 @@ const MessageTypes = {
 export class WebSocketService {
   constructor() {
     this.ws = null;
+    this.wsUrl = import.meta.env.VITE_WS_URL;
+    this.isConnecting = false;
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
-    this.wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8001/ws';
-    this.isConnecting = false;
-    this.intentionalClose = false;
-    this.reconnectTimeout = null;
-    this.initialConnection = true;
-    this.pingInterval = null;
-    this.pongTimeout = null;
-    this.pingIntervalTime = 30000; // 30 seconds
-    this.pongTimeoutTime = 10000; // 10 seconds
-    this.connectionStatus = {
-      isConnected: false,
-      hasConnectedBefore: false,
-      lastPing: null,
-      reconnectAttempts: 0
-    };
     this.subscribers = new Map();
     this.lastBlockchainState = null;
+    this.messageQueue = [];
+    this.connectionStatus = {
+      isConnected: false,
+      lastError: null,
+      reconnecting: false
+    };
   }
 
   connect() {
-    if (this.isConnecting || this.isConnected()) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      console.log('WebSocket already connected');
       return;
     }
 
-    try {
-      this.isConnecting = true;
-      this.intentionalClose = false;
-      console.log('Connecting to WebSocket:', this.wsUrl);
-      
-      if (this.ws) {
-        this.ws.close();
-        this.ws = null;
-      }
+    if (this.isConnecting) {
+      console.log('WebSocket connection already in progress');
+      return;
+    }
 
+    this.isConnecting = true;
+    this.connectionStatus.reconnecting = false;
+    
+    try {
       this.ws = new WebSocket(this.wsUrl);
       this.setupEventHandlers();
     } catch (error) {
-      this.handleError(error);
+      console.error('Failed to create WebSocket connection:', error);
+      this.connectionStatus.lastError = error;
+      this.isConnecting = false;
     }
   }
 
@@ -71,15 +66,21 @@ export class WebSocketService {
       console.log('WebSocket connected successfully');
       this.isConnecting = false;
       this.reconnectAttempts = 0;
-      this.clearReconnectTimeout();
       this.connectionStatus.isConnected = true;
+      this.connectionStatus.lastError = null;
+      this.connectionStatus.reconnecting = false;
+      
+      while (this.messageQueue.length > 0) {
+        const message = this.messageQueue.shift();
+        this.sendMessage(message);
+      }
     };
 
     this.ws.onmessage = (event) => {
       try {
         // First, try to parse as JSON
         const data = JSON.parse(event.data);
-        console.log('Received message:', data);
+        // console.log('Received message:', data);
 
         // Handle different message types
         switch (data.type) {
@@ -101,7 +102,7 @@ export class WebSocketService {
             break;
 
           default:
-            console.log('Received other message type:', data.type);
+            // console.log('Received other message type:', data.type);
         }
       } catch (error) {
         // If it's not JSON, handle as plain text
@@ -111,12 +112,14 @@ export class WebSocketService {
 
     this.ws.onerror = (error) => {
       console.error('WebSocket error:', error);
-      this.handleError(error);
+      this.connectionStatus.isConnected = false;
+      this.connectionStatus.lastError = error;
     };
 
-    this.ws.onclose = (event) => {
-      console.log('WebSocket closed:', event.code, event.reason);
+    this.ws.onclose = () => {
+      console.log('WebSocket connection closed');
       this.connectionStatus.isConnected = false;
+      this.connectionStatus.reconnecting = true;
       if (!this.intentionalClose) {
         this.reconnect();
       }
@@ -230,10 +233,7 @@ export class WebSocketService {
   }
 
   getConnectionStatus() {
-    return {
-      ...this.connectionStatus,
-      isConnected: this.isConnected()
-    };
+    return this.connectionStatus.isConnected;
   }
 
   startPingPong() {
@@ -274,11 +274,11 @@ export class WebSocketService {
 
   getDetailedStatus() {
     return {
-      isConnected: this.isConnected(),
-      readyState: this.ws?.readyState,
-      lastPing: this.connectionStatus.lastPing,
+      isConnected: this.connectionStatus.isConnected,
+      isConnecting: this.isConnecting,
       reconnectAttempts: this.reconnectAttempts,
-      url: this.wsUrl
+      lastError: this.connectionStatus.lastError,
+      reconnecting: this.connectionStatus.reconnecting
     };
   }
 
@@ -311,6 +311,30 @@ export class WebSocketService {
           console.error('Error in subscriber callback:', error);
         }
       });
+    }
+  }
+
+  sendMessage(message) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      try {
+        this.ws.send(JSON.stringify(message));
+      } catch (error) {
+        console.error('Error sending message:', error);
+        throw error;
+      }
+    } else {
+      console.log('WebSocket not ready, queueing message:', message);
+      this.messageQueue.push(message);
+    }
+  }
+
+  waitForConnection(callback, interval = 100) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      callback();
+    } else {
+      setTimeout(() => {
+        this.waitForConnection(callback, interval);
+      }, interval);
     }
   }
 }
