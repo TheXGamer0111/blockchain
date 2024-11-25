@@ -3,6 +3,7 @@ import Dashboard from '../pages/Dashboard';
 import Staking from '../pages/Staking';
 import Governance from '../pages/Governance';
 import Wallet from '../pages/Wallet';
+import BlockExplorer from '../components/blockchain/BlockExplorer';
 
 
 const AppRoutes = () => {
@@ -11,6 +12,7 @@ const AppRoutes = () => {
       <Route path="/" element={<Dashboard />} />
       <Route path="/staking" element={<Staking />} />
       <Route path="/governance" element={<Governance />} />
+      <Route path="/block-explorer" element={<BlockExplorer />} />
       <Route path="/wallet" element={<Wallet />} />
       {/* Add a catch-all route for 404 */}
       <Route path="*" element={<div>404 - Page Not Found</div>} />

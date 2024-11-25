@@ -27,7 +27,7 @@ const BlockchainStatus = () => {
         </div>
         <div>
           <p className="text-gray-400">Mempool Size</p>
-          <p className="text-xl text-white font-semibold">{blockchainState.mempool}</p>
+          <p className="text-xl text-white font-semibold">{blockchainState.mempool ? blockchainState.mempool : 0}</p>
         </div>
         <div>
           <p className="text-gray-400">Difficulty</p>

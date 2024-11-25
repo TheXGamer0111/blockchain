@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { wsService } from '../../services/websocket';
 import { toast } from 'react-toastify';
 import { formatDistanceToNow } from 'date-fns';
+import TransactionModal from './TransactionModal';
+import { formatAddress } from '../../utils/blockchain';
 
 const TransactionNotifications = () => {
   const [pendingTransactions, setPendingTransactions] = useState([]);
@@ -9,6 +11,40 @@ const TransactionNotifications = () => {
   const [sortBy, setSortBy] = useState('timestamp');
   const [sortOrder, setSortOrder] = useState('desc');
   const [connectionStatus, setConnectionStatus] = useState({ isConnected: false });
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+
+  // Memoize filtered and sorted transactions
+  const filteredTransactions = useMemo(() => {
+    return pendingTransactions
+      .filter(tx => {
+        const searchTerm = filter.toLowerCase();
+        return (
+          tx.hash?.toLowerCase().includes(searchTerm) ||
+          tx.sender?.toLowerCase().includes(searchTerm) ||
+          tx.recipient?.toLowerCase().includes(searchTerm) ||
+          tx.amount?.toString().includes(searchTerm)
+        );
+      })
+      .sort((a, b) => {
+        const order = sortOrder === 'asc' ? 1 : -1;
+        switch (sortBy) {
+          case 'amount':
+            return (a.amount - b.amount) * order;
+          case 'timestamp':
+            return (a.timestamp - b.timestamp) * order;
+          default:
+            return 0;
+        }
+      });
+  }, [pendingTransactions, filter, sortBy, sortOrder]);
+
+  // Calculate stats based on filtered transactions
+  const stats = useMemo(() => {
+    const total = filteredTransactions.length;
+    const volume = filteredTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+    const average = total > 0 ? volume / total : 0;
+    return { total, volume, average };
+  }, [filteredTransactions]);
 
   useEffect(() => {
     // Subscribe to transaction updates
@@ -55,26 +91,6 @@ const TransactionNotifications = () => {
     };
   }, [pendingTransactions]);
 
-  // Filter and sort transactions
-  const filteredTransactions = pendingTransactions
-    .filter(tx => 
-      filter === '' || 
-      tx.hash.toLowerCase().includes(filter.toLowerCase()) ||
-      tx.sender.toLowerCase().includes(filter.toLowerCase()) ||
-      tx.recipient.toLowerCase().includes(filter.toLowerCase())
-    )
-    .sort((a, b) => {
-      const order = sortOrder === 'asc' ? 1 : -1;
-      switch (sortBy) {
-        case 'amount':
-          return (a.amount - b.amount) * order;
-        case 'timestamp':
-          return (a.timestamp - b.timestamp) * order;
-        default:
-          return 0;
-      }
-    });
-
   const handleSort = (field) => {
     if (sortBy === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -84,8 +100,29 @@ const TransactionNotifications = () => {
     }
   };
 
+  const handleTransactionClick = (tx) => {
+    setSelectedTransaction(tx);
+  };
+
   return (
     <div className="bg-gray-800 p-4 rounded-lg shadow-lg">
+      {/* Stats Section */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-gray-700 p-4 rounded">
+          <p className="text-gray-400">Pending Transactions</p>
+          <p className="text-2xl font-bold">{stats.total}</p>
+        </div>
+        <div className="bg-gray-700 p-4 rounded">
+          <p className="text-gray-400">Total Volume</p>
+          <p className="text-2xl font-bold">{stats.volume.toFixed(2)} NEXUS</p>
+        </div>
+        <div className="bg-gray-700 p-4 rounded">
+          <p className="text-gray-400">Average Amount</p>
+          <p className="text-2xl font-bold">{stats.average.toFixed(2)} NEXUS</p>
+        </div>
+      </div>
+
+      {/* Search and Status Section */}
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold">Pending Transactions</h2>
         <div className="flex items-center space-x-4">
@@ -102,47 +139,43 @@ const TransactionNotifications = () => {
               ? 'Reconnecting...'
               : 'Disconnected'}
           </span>
-          <div className="flex space-x-2">
+          <div className="relative">
             <input
               type="text"
-              placeholder="Search transactions..."
-              className="px-3 py-1 bg-gray-700 rounded text-sm"
+              placeholder="Search by hash, address, or amount..."
+              className="px-3 py-2 bg-gray-700 rounded text-sm w-64 pr-8"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
             />
+            {filter && (
+              <button
+                className="absolute right-2 top-2 text-gray-400 hover:text-white"
+                onClick={() => setFilter('')}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {filteredTransactions.length === 0 ? (
-        <p className="text-gray-400">No pending transactions</p>
-      ) : (
-        <div className="space-y-2">
-          <div className="grid grid-cols-4 gap-4 px-3 py-2 bg-gray-700 rounded text-sm font-medium">
-            <button 
-              className="text-left flex items-center space-x-1"
-              onClick={() => handleSort('timestamp')}
-            >
-              <span>Time</span>
-              {sortBy === 'timestamp' && (
-                <span>{sortOrder === 'asc' ? '↑' : '↓'}</span>
-              )}
-            </button>
-            <span>From/To</span>
-            <button 
-              className="text-left flex items-center space-x-1"
-              onClick={() => handleSort('amount')}
-            >
-              <span>Amount</span>
-              {sortBy === 'amount' && (
-                <span>{sortOrder === 'asc' ? '↑' : '↓'}</span>
-              )}
-            </button>
-            <span>Status</span>
+      {/* Transactions List */}
+      <div className="space-y-2">
+        {filteredTransactions.length === 0 ? (
+          <div className="text-center py-8 text-gray-400">
+            {filter 
+              ? 'No transactions match your search'
+              : 'No pending transactions'}
           </div>
-
-          {filteredTransactions.map((tx) => (
-            <div key={tx.hash} className="bg-gray-700 p-3 rounded hover:bg-gray-600 transition-colors">
+        ) : (
+          filteredTransactions.map((tx) => (
+            <div 
+              key={tx.hash}
+              className="bg-gray-700 p-3 rounded hover:bg-gray-600 transition-colors cursor-pointer"
+              onClick={() => setSelectedTransaction(tx)}
+            >
               <div className="grid grid-cols-4 gap-4">
                 <div className="text-sm">
                   {formatDistanceToNow(new Date(tx.timestamp * 1000), { addSuffix: true })}
@@ -150,25 +183,33 @@ const TransactionNotifications = () => {
                 <div>
                   <div className="text-sm">
                     <span className="text-gray-400">From: </span>
-                    <span className="font-mono truncate">{tx.sender}</span>
+                    <span className="font-mono">{formatAddress(tx.sender, 6)}</span>
                   </div>
                   <div className="text-sm">
                     <span className="text-gray-400">To: </span>
-                    <span className="font-mono truncate">{tx.recipient}</span>
+                    <span className="font-mono">{formatAddress(tx.recipient, 6)}</span>
                   </div>
                 </div>
                 <div className="text-sm font-medium">
-                  {tx.amount} NEXUS
+                  {tx.amount.toFixed(2)} NEXUS
                 </div>
                 <div>
                   <span className="px-2 py-1 text-xs rounded-full bg-yellow-500/20 text-yellow-300">
-                    {tx.status}
+                    {tx.status || 'pending'}
                   </span>
                 </div>
               </div>
             </div>
-          ))}
-        </div>
+          ))
+        )}
+      </div>
+
+      {/* Transaction Modal */}
+      {selectedTransaction && (
+        <TransactionModal
+          transaction={selectedTransaction}
+          onClose={() => setSelectedTransaction(null)}
+        />
       )}
     </div>
   );

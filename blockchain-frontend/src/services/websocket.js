@@ -27,12 +27,11 @@ export class WebSocketService {
     this.maxReconnectAttempts = 5;
     this.subscribers = new Map();
     this.lastBlockchainState = null;
-    this.messageQueue = [];
+    this.messageQueue = new Set();
     this.connectionStatus = {
-      isConnected: false,
-      lastError: null,
-      reconnecting: false
+      isConnected: false
     };
+    this.sentMessages = new Set();
   }
 
   connect() {
@@ -67,13 +66,14 @@ export class WebSocketService {
       this.isConnecting = false;
       this.reconnectAttempts = 0;
       this.connectionStatus.isConnected = true;
-      this.connectionStatus.lastError = null;
-      this.connectionStatus.reconnecting = false;
       
-      while (this.messageQueue.length > 0) {
-        const message = this.messageQueue.shift();
-        this.sendMessage(message);
-      }
+      // Process queued messages
+      this.messageQueue.forEach(message => {
+        if (!this.sentMessages.has(JSON.stringify(message))) {
+          this.sendMessage(message);
+        }
+      });
+      this.messageQueue.clear();
     };
 
     this.ws.onmessage = (event) => {
@@ -119,7 +119,7 @@ export class WebSocketService {
     this.ws.onclose = () => {
       console.log('WebSocket connection closed');
       this.connectionStatus.isConnected = false;
-      this.connectionStatus.reconnecting = true;
+      this.sentMessages.clear();
       if (!this.intentionalClose) {
         this.reconnect();
       }
@@ -315,16 +315,26 @@ export class WebSocketService {
   }
 
   sendMessage(message) {
+    const messageStr = JSON.stringify(message);
+    
     if (this.ws?.readyState === WebSocket.OPEN) {
       try {
-        this.ws.send(JSON.stringify(message));
+        if (!this.sentMessages.has(messageStr)) {
+          this.ws.send(messageStr);
+          this.sentMessages.add(messageStr);
+          
+          // Remove from sent messages after a delay
+          setTimeout(() => {
+            this.sentMessages.delete(messageStr);
+          }, 5000);  // Clear after 5 seconds
+        }
       } catch (error) {
         console.error('Error sending message:', error);
         throw error;
       }
     } else {
       console.log('WebSocket not ready, queueing message:', message);
-      this.messageQueue.push(message);
+      this.messageQueue.add(message);
     }
   }
 
