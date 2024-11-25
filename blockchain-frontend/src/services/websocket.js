@@ -38,6 +38,8 @@ export class WebSocketService {
       lastPing: null,
       reconnectAttempts: 0
     };
+    this.subscribers = new Map();
+    this.lastBlockchainState = null;
   }
 
   connect() {
@@ -71,66 +73,52 @@ export class WebSocketService {
       this.reconnectAttempts = 0;
       this.clearReconnectTimeout();
       this.connectionStatus.isConnected = true;
-      this.connectionStatus.hasConnectedBefore = true;
-      this.connectionStatus.lastPing = new Date();
-      
-      this.startPingPong();
-      
-      if (!this.initialConnection && !this.intentionalClose) {
-        if (this.connectionStatus.hasConnectedBefore) {
-          toast.success('Reconnected to blockchain network', {
-            toastId: 'ws-reconnected'
-          });
-        } else {
-          toast.success('Connected to blockchain network', {
-            toastId: 'ws-connected'
-          });
-          this.connectionStatus.hasConnectedBefore = true;
-        }
-      }
-      this.initialConnection = false;
     };
 
     this.ws.onmessage = (event) => {
       try {
-        if (typeof event.data === 'string' && event.data.includes('Connected')) {
-          console.log('Received connection confirmation:', event.data);
-          if (this.initialConnection) {
-            toast.success('Connected to blockchain network', {
-              toastId: 'ws-connected'
-            });
-            this.initialConnection = false;
-          }
-          return;
-        }
-
+        // First, try to parse as JSON
         const data = JSON.parse(event.data);
-        this.handleWebSocketMessage(data);
-      } catch (error) {
-        if (!event.data.includes('Connected')) {
-          console.error('Error parsing WebSocket message:', error);
-        }
-      }
-    };
+        console.log('Received message:', data);
 
-    this.ws.onclose = (event) => {
-      this.isConnecting = false;
-      this.connectionStatus.isConnected = false;
-      console.log('WebSocket connection closed:', event);
-      
-      if (!this.intentionalClose && !this.initialConnection) {
-        toast.warning('Connection to blockchain network lost', {
-          toastId: 'ws-disconnected'
-        });
-        this.handleReconnect();
+        // Handle different message types
+        switch (data.type) {
+          case 'BLOCKCHAIN_STATE':
+            this.lastBlockchainState = data.data;
+            this.notifySubscribers('BLOCKCHAIN_STATE', data.data);
+            break;
+
+          case 'PONG':
+            console.log('Received PONG with data:', data.data);
+            if (data.data) {
+                this.lastBlockchainState = data.data;
+                this.notifySubscribers('BLOCKCHAIN_STATE', data.data);
+            }
+            break;
+
+          case 'Connected to Nexuschain WebSocket':
+            console.log('Connected to blockchain node');
+            break;
+
+          default:
+            console.log('Received other message type:', data.type);
+        }
+      } catch (error) {
+        // If it's not JSON, handle as plain text
+        console.log('Received raw message:', event.data);
       }
     };
 
     this.ws.onerror = (error) => {
-      if (!this.initialConnection) {
-        this.handleError(error);
-      } else {
-        console.error('Initial WebSocket connection error:', error);
+      console.error('WebSocket error:', error);
+      this.handleError(error);
+    };
+
+    this.ws.onclose = (event) => {
+      console.log('WebSocket closed:', event.code, event.reason);
+      this.connectionStatus.isConnected = false;
+      if (!this.intentionalClose) {
+        this.reconnect();
       }
     };
   }
@@ -292,6 +280,38 @@ export class WebSocketService {
       reconnectAttempts: this.reconnectAttempts,
       url: this.wsUrl
     };
+  }
+
+  subscribe(eventType, callback) {
+    if (!this.subscribers.has(eventType)) {
+      this.subscribers.set(eventType, new Set());
+    }
+    this.subscribers.get(eventType).add(callback);
+    
+    // Send initial state if available
+    if (eventType === 'BLOCKCHAIN_STATE' && this.lastBlockchainState) {
+      callback(this.lastBlockchainState);
+    }
+
+    return () => {
+      const callbacks = this.subscribers.get(eventType);
+      if (callbacks) {
+        callbacks.delete(callback);
+      }
+    };
+  }
+
+  notifySubscribers(eventType, data) {
+    const callbacks = this.subscribers.get(eventType);
+    if (callbacks) {
+      callbacks.forEach(callback => {
+        try {
+          callback(data);
+        } catch (error) {
+          console.error('Error in subscriber callback:', error);
+        }
+      });
+    }
   }
 }
 

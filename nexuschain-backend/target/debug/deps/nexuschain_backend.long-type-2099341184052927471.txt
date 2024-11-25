@@ -1,0 +1,1 @@
+fn(WebSocketUpgrade, Arc<Blockchain>) -> impl futures::Future<Output = impl IntoResponse> {ws_handler}

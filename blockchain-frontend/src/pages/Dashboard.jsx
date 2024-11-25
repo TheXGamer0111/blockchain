@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 import { fetchDashboardData } from '../store/slices/dashboardSlice';
 import GovernanceWidget from '../components/dashboard/GovernanceWidget';
+import BlockchainStatus from '../components/blockchain/BlockchainStatus';
 
 function Dashboard() {
   const dispatch = useDispatch();
@@ -42,6 +43,7 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <BlockchainStatus />
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total Value Locked" value={stats.tvl} change="+5.3%" />

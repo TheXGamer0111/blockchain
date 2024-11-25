@@ -30,8 +30,8 @@ impl axum_limit::Key for RateKey {
 
 #[derive(Clone)]
 pub struct AppState {
-    blockchain: Arc<Blockchain>,
-    limit_state: LimitState<RateKey>,
+    pub blockchain: Arc<Blockchain>,
+    pub limit_state: LimitState<RateKey>,
 }
 
 pub struct ApiServer {

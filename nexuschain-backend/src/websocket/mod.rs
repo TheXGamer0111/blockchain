@@ -1,62 +1,85 @@
 use axum::{
     extract::ws::{Message, WebSocket, WebSocketUpgrade},
     response::IntoResponse,
+    extract::State,
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use serde_json::{json, Value};
+use std::sync::Arc;
+use crate::blockchain::Blockchain;
+use crate::api::AppState;
 
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
+    State(state): State<AppState>,
 ) -> impl IntoResponse {
     println!("New WebSocket connection request received");
-    ws.on_upgrade(handle_socket)
+    ws.on_upgrade(|socket| handle_socket(socket, state.blockchain))
 }
 
-async fn handle_socket(mut socket: WebSocket) {
+async fn handle_socket(mut socket: WebSocket, blockchain: Arc<Blockchain>) {
     println!("WebSocket connection established");
 
-    // Send a ping to confirm connection
-    if let Err(e) = socket.send(Message::Text(String::from("Connected to Nexuschain WebSocket"))).await {
-        println!("Error sending welcome message: {}", e);
+    // Send initial blockchain state
+    let chain = blockchain.get_chain().await;
+    let pending_transactions = blockchain.get_pending_transactions().await;
+    let initial_state = json!({
+        "type": "BLOCKCHAIN_STATE",
+        "data": {
+            "chainLength": chain.len(),
+            "lastBlock": chain.last(),
+            "difficulty": blockchain.get_difficulty(),
+            "mempool": pending_transactions.len(),
+            "isMining": blockchain.is_mining().await
+        }
+    });
+
+    if let Err(e) = socket.send(Message::Text(initial_state.to_string())).await {
+        println!("Error sending initial state: {}", e);
         return;
     }
 
     let (mut sender, mut receiver) = socket.split();
 
-    // Handle incoming messages
     while let Some(msg) = receiver.next().await {
         if let Ok(msg) = msg {
             match msg {
                 Message::Text(text) => {
-                    // Try to parse the message as JSON
                     if let Ok(json) = serde_json::from_str::<Value>(&text) {
                         match json.get("type").and_then(Value::as_str) {
                             Some("PING") => {
-                                // Respond with PONG
+                                let chain = blockchain.get_chain().await;
+                                let pending_transactions = blockchain.get_pending_transactions().await;
+                                let blockchain_state = json!({
+                                    "type": "PONG",
+                                    "timestamp": chrono::Utc::now().timestamp(),
+                                    "data": {
+                                        "chainLength": chain.len(),
+                                        "lastBlock": chain.last(),
+                                        "difficulty": blockchain.get_difficulty(),
+                                        "mempool": pending_transactions.len(),
+                                        "isMining": blockchain.is_mining().await
+                                    }
+                                });
+                                
                                 if let Err(e) = sender.send(Message::Text(
-                                    json!({
-                                        "type": "PONG",
-                                        "timestamp": chrono::Utc::now().timestamp()
-                                    }).to_string()
+                                    blockchain_state.to_string()
                                 )).await {
-                                    println!("Error sending PONG: {}", e);
+                                    println!("Error sending blockchain state: {}", e);
                                     break;
                                 }
                             },
+                            Some("SUBSCRIBE_UPDATES") => {
+                                // Handle subscription request
+                                println!("Client subscribed to updates");
+                            },
                             Some(msg_type) => {
                                 println!("Received message type: {}", msg_type);
-                                // Handle other message types here
-                                if let Err(e) = sender.send(Message::Text(text)).await {
-                                    println!("Error sending message: {}", e);
-                                    break;
-                                }
                             },
                             None => {
                                 println!("Received message without type: {}", text);
                             }
                         }
-                    } else {
-                        println!("Received non-JSON message: {}", text);
                     }
                 }
                 Message::Close(_) => {
@@ -65,9 +88,6 @@ async fn handle_socket(mut socket: WebSocket) {
                 }
                 _ => {}
             }
-        } else {
-            println!("Error receiving message");
-            break;
         }
     }
 }
