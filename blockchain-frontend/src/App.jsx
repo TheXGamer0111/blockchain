@@ -6,6 +6,7 @@ import Layout from './components/layout/Layout';
 import AppRoutes from './routes';
 import ConnectionStatus from './components/common/ConnectionStatus';
 import { wsService, useWebSocket } from './services/websocket';
+import WebSocketMonitor from './components/common/WebSocketMonitor';
 
 function App() {
   const { isConnected, hasConnectedBefore } = useWebSocket();
@@ -36,6 +37,7 @@ function App() {
           pauseOnHover
           theme="dark"
         />
+        <WebSocketMonitor />
       </Layout>
     </Router>
   );

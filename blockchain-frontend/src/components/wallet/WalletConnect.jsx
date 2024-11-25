@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { connectWallet, disconnectWallet } from '../../store/slices/walletSlice';
 import { toast } from 'react-toastify';
 import Web3 from 'web3';
-import { wsService } from '../../services/websocket';
 
 const WalletConnect = () => {
   const dispatch = useDispatch();
@@ -55,36 +54,19 @@ const WalletConnect = () => {
     }
   };
 
-  const handleDisconnect = async () => {
+  const handleDisconnect = useCallback(async (e) => {
+    // Prevent default behavior
+    e.preventDefault();
+    e.stopPropagation();
+    
     try {
-      // First disconnect WebSocket
-      if (wsService) {
-        wsService.disconnect();
-      }
-
-      await dispatch(disconnectWallet());
-
-      // Clear any cached provider state
-      if (window.ethereum) {
-        window.ethereum.removeAllListeners();
-      }
-
-      // Clear local storage
-      localStorage.clear();
-
-      toast.success('Wallet disconnected successfully', {
-        toastId: 'wallet-disconnect'
-      });
-
-      // Force reload without cache
-      window.location.reload();
+      await dispatch(disconnectWallet()).unwrap();
+      toast.success('Wallet disconnected');
     } catch (error) {
       console.error('Failed to disconnect:', error);
-      toast.error(error.message || 'Failed to disconnect wallet', {
-        toastId: 'wallet-disconnect-error'
-      });
+      toast.error('Failed to disconnect wallet');
     }
-  };
+  }, [dispatch]);
 
   // Event listeners
   useEffect(() => {
@@ -127,12 +109,10 @@ const WalletConnect = () => {
           )}
           <button
             onClick={handleDisconnect}
-            disabled={loading || isProcessing}
-            className={`px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors ${
-              (loading || isProcessing) ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
+            type="button"
+            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
           >
-            {loading ? 'Disconnecting...' : 'Disconnect'}
+            Disconnect Wallet
           </button>
         </div>
       ) : (

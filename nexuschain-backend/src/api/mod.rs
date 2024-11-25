@@ -15,6 +15,7 @@ use axum::http::Method;
 use crate::api::routes::get_block_by_hash;
 use tower_http::trace::TraceLayer;
 use axum_limit::LimitState;
+use crate::websocket::ws_handler;
 
 #[derive(Default, Hash, Eq, PartialEq, Clone)]
 struct RateKey(i32, i32);
@@ -67,12 +68,20 @@ impl ApiServer {
             .route("/transactions/:hash", get(get_transaction))
             .route("/node/status", get(routes::node_status))
             .route("/block/:hash", get(get_block_by_hash))
+            .route("/ws", get(ws_handler))
             .layer(DefaultBodyLimit::max(1024 * 1024 * 50)) // 50MB limit
             .layer(TraceLayer::new_for_http())
             .layer(
                 CorsLayer::new()
                     .allow_origin(HeaderValue::from_static("http://localhost:3000"))
                     .allow_methods([Method::GET, Method::POST])
+                    .allow_headers([
+                        axum::http::header::CONTENT_TYPE,
+                        axum::http::header::UPGRADE,
+                        axum::http::header::CONNECTION,
+                        axum::http::header::SEC_WEBSOCKET_KEY,
+                        axum::http::header::SEC_WEBSOCKET_VERSION,
+                    ])
             )
             .with_state(state)
     }

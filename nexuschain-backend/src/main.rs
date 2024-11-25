@@ -2,6 +2,7 @@ mod api;
 mod blockchain;
 mod networking;
 mod wallet;
+mod websocket;
 
 use std::net::SocketAddr;
 use std::sync::Arc;

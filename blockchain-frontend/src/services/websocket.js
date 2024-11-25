@@ -34,7 +34,9 @@ export class WebSocketService {
     this.pongTimeoutTime = 10000; // 10 seconds
     this.connectionStatus = {
       isConnected: false,
-      hasConnectedBefore: false
+      hasConnectedBefore: false,
+      lastPing: null,
+      reconnectAttempts: 0
     };
   }
 
@@ -69,6 +71,8 @@ export class WebSocketService {
       this.reconnectAttempts = 0;
       this.clearReconnectTimeout();
       this.connectionStatus.isConnected = true;
+      this.connectionStatus.hasConnectedBefore = true;
+      this.connectionStatus.lastPing = new Date();
       
       this.startPingPong();
       
@@ -248,6 +252,7 @@ export class WebSocketService {
     this.pingInterval = setInterval(() => {
       if (this.isConnected()) {
         this.ws.send(JSON.stringify({ type: 'PING' }));
+        this.connectionStatus.lastPing = new Date();
         
         this.pongTimeout = setTimeout(() => {
           console.log('Pong not received, reconnecting...');
@@ -277,6 +282,16 @@ export class WebSocketService {
     this.disconnect();
     this.stopPingPong();
     this.clearReconnectTimeout();
+  }
+
+  getDetailedStatus() {
+    return {
+      isConnected: this.isConnected(),
+      readyState: this.ws?.readyState,
+      lastPing: this.connectionStatus.lastPing,
+      reconnectAttempts: this.reconnectAttempts,
+      url: this.wsUrl
+    };
   }
 }
 
