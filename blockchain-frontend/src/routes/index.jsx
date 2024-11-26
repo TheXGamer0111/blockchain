@@ -3,7 +3,7 @@ import Dashboard from '../pages/Dashboard';
 import Staking from '../pages/Staking';
 import Governance from '../pages/Governance';
 import Wallet from '../pages/Wallet';
-import BlockExplorer from '../components/blockchain/BlockExplorer';
+import BlockExplorer from '../components/blockchain/BlockExplorer.jsx';
 
 
 const AppRoutes = () => {

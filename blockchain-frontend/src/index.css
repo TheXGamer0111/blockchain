@@ -2,30 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+.block-row {
+  transition: background-color 0.2s ease;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
 @keyframes pulse {
-  0% {
-    transform: scale(1);
+  0%, 100% {
     opacity: 1;
   }
   50% {
-    transform: scale(2);
-    opacity: 0.5;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-.animate-matrix {
-  animation: matrix 20s linear infinite;
-}
-
-@keyframes matrix {
-  0% {
-    transform: translateY(-100%);
-  }
-  100% {
-    transform: translateY(100%);
+    opacity: .5;
   }
 }

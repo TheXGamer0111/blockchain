@@ -1,3 +1,4 @@
+use lazy_static::lazy_static;
 use axum::{
     extract::ws::{Message, WebSocket, WebSocketUpgrade},
     response::IntoResponse,
@@ -94,6 +95,26 @@ async fn handle_socket(mut socket: WebSocket, blockchain: Arc<Blockchain>) {
 
                     if let Ok(json) = serde_json::from_str::<Value>(&text) {
                         match json.get("type").and_then(Value::as_str) {
+                            Some("GET_BLOCKCHAIN_DATA") => {
+                                let chain = blockchain.get_chain().await;
+                                let response = json!({
+                                    "type": "BLOCKCHAIN_UPDATE",
+                                    "data": {
+                                        "blocks": chain,
+                                        "totalBlocks": chain.len(),
+                                        "difficulty": blockchain.get_difficulty(),
+                                        "lastBlock": chain.last(),
+                                        "pendingTransactions": blockchain.get_pending_transactions().await
+                                    }
+                                });
+
+                                if let Err(e) = sender.send(Message::Text(
+                                    response.to_string()
+                                )).await {
+                                    println!("Error sending blockchain data: {}", e);
+                                    break;
+                                }
+                            },
                             Some("PING") => {
                                 let pending_transactions = blockchain.get_pending_transactions().await;
                                 let blockchain_state = json!({

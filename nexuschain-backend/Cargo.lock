@@ -1340,6 +1340,7 @@ dependencies = [
  "chrono",
  "futures",
  "hex",
+ "lazy_static",
  "rand",
  "secp256k1",
  "serde",

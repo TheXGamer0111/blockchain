@@ -25,3 +25,4 @@ tower-http = { version = "0.4", features = ["cors", "trace", "limit"] }
 tower = { version = "0.4", features = ["limit"] }
 axum-extra = "0.6"
 axum-limit = "0.1.0-alpha.2"
+lazy_static = "1.4.0"

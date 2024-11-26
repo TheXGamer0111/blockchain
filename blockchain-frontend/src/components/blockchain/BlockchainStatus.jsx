@@ -6,8 +6,15 @@ const BlockchainStatus = () => {
 
   useEffect(() => {
     const unsubscribe = wsService.subscribe('BLOCKCHAIN_STATE', (data) => {
-      console.log('Received blockchain state:', data);
-      setBlockchainState(data);
+      // Only update state if data has changed
+      // console.log('Received blockchain state:', data);
+      setBlockchainState(prevState => {
+        if (!prevState || JSON.stringify(prevState) !== JSON.stringify(data)) {
+          console.log('Blockchain state updated:', data);
+          return data;
+        }
+        return prevState;
+      });
     });
 
     return () => unsubscribe();
